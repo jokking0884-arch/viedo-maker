@@ -1,0 +1,84 @@
+name: Make video
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: "Title (ခေါင်းစဉ်)"
+        required: true
+        type: string
+      genre:
+        description: "Genre"
+        required: false
+        default: "သရဲ ကြောက်စရာ၊ twist ending ပါတဲ့ ဇာတ်လမ်း"
+        type: string
+      scenes:
+        description: "Number of scenes"
+        required: false
+        default: "7"
+        type: string
+      cast:
+        description: "Characters, comma separated (optional)"
+        required: false
+        default: ""
+        type: string
+      voice:
+        description: "Narrator voice"
+        required: false
+        default: "male"
+        type: choice
+        options:
+          - male
+          - female
+      story_json:
+        description: "Your own story JSON (optional, skips Claude)"
+        required: false
+        default: ""
+        type: string
+permissions:
+  contents: write
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-core
+          pip install requests edge-tts gtts
+      - name: Make video
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TITLE: ${{ inputs.title }}
+          GENRE: ${{ inputs.genre }}
+          SCENES: ${{ inputs.scenes }}
+          CAST: ${{ inputs.cast }}
+          VOICE: ${{ inputs.voice }}
+          STORY_JSON: ${{ inputs.story_json }}
+        run: |
+          args=("$TITLE" --genre "$GENRE" --scenes "$SCENES" --voice "$VOICE" --out result)
+          if [ -n "$CAST" ]; then args+=(--cast "$CAST"); fi
+          if [ -n "$STORY_JSON" ]; then
+            printf '%s' "$STORY_JSON" > story_in.json
+            args+=(--story story_in.json)
+          fi
+          python make_video.py "${args[@]}"
+      - name: Collect files
+        run: |
+          mkdir -p release
+          cp output/result/video.mp4 release/video.mp4
+          cp output/result/caption.txt release/caption.txt
+          cp output/result/story.json release/story.json
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: video-${{ github.run_number }}
+          name: ${{ inputs.title }}
+          body_path: release/caption.txt
+          files: |
+            release/video.mp4
+            release/caption.txt
+            release/story.json
