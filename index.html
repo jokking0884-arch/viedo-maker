@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#7A3FD1">
+<title>Auto Video</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Myanmar:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F6F3FB;--sf:#fff;--ink:#1C1633;--mu:#5E5778;--ln:#D9D2EA;--ac:#7A3FD1;--ai:#fff;--ok:#2A8F5C;--er:#B3261E;--tn:#ECE3FA;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root{--bg:#130F22;--sf:#1D1833;--ink:#EEE9FA;--mu:#A89FC6;--ln:#332B54;--ac:#B48CFF;--ai:#130F22;--ok:#5FD596;--er:#FF8A80;--tn:#2A2248}}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans Myanmar","Padauk","Myanmar Text",system-ui,sans-serif;line-height:1.7;min-height:100vh}
+button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer}
+input,textarea{width:100%;background:var(--sf);border:1.5px solid var(--ln);border-radius:10px;padding:10px 12px;color:var(--ink)}
+:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+#app{max-width:560px;margin:0 auto;padding:0 16px 110px}
+header{padding:14px 0 4px}header b{font-size:1.25rem}
+label{display:block;font-weight:500;margin:14px 0 4px}small,.mu{color:var(--mu)}
+.card{background:var(--sf);border:1px solid var(--ln);border-radius:16px;padding:16px;margin-top:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--bg);border:1.5px solid var(--ln);border-radius:99px;padding:5px 12px}
+.chip.on{background:var(--tn);border-color:var(--ac);font-weight:700}
+.btn{display:block;width:100%;text-align:center;text-decoration:none;background:var(--ac);color:var(--ai);border:0;border-radius:12px;padding:13px;font-weight:700;margin-top:14px}
+.btn.ghost{background:none;color:var(--ink);border:1.5px solid var(--ln)}
+.btn[disabled]{opacity:.6}
+.msg{min-height:1.4em;margin:8px 0 0;font-size:.92rem}.err{color:var(--er)}.ok{color:var(--ok)}
+.seg{display:flex;border:1.5px solid var(--ln);border-radius:12px;overflow:hidden}
+.seg button{flex:1;background:var(--sf);border:0;padding:8px}.seg .on{background:var(--ac);color:var(--ai);font-weight:700}
+.bar{height:8px;background:var(--tn);border-radius:99px;overflow:hidden;margin:10px 0}
+.bar i{display:block;height:100%;background:var(--ac);border-radius:99px;animation:mv 1.6s infinite ease-in-out}
+@keyframes mv{0%{width:10%}50%{width:80%}100%{width:10%}}
+@media (prefers-reduced-motion:reduce){.bar i{animation:none;width:50%}}
+.cap{white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:10px;margin:8px 0;overflow-wrap:anywhere}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;background:var(--sf);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;max-width:170px;background:none;border:0;padding:8px 4px;display:flex;flex-direction:column;align-items:center;line-height:1.3;color:var(--mu);font-size:.82rem}
+nav button span{font-size:1.3rem}nav .on{color:var(--ac);font-weight:700}
+h2{font-size:1.05rem;margin:0 0 6px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const KEY='autovideo:v1';
+const GENRES=[['သရဲ ကြောက်စရာ၊ twist ending ပါတဲ့ ဇာတ်လမ်း','👻 သရဲ'],['နှလုံးသားထိမိတဲ့ အချစ်ဇာတ်လမ်း','💞 အချစ်'],['ရယ်စရာ ဟာသဇာတ်လမ်း','😂 ဟာသ'],['သင်ခန်းစာရတဲ့ ပုံပြင်','📖 ပုံပြင်'],['လျှို့ဝှက်ဆန်းကြယ် စုံထောက်ဇာတ်လမ်း','🕵️ စုံထောက်']];
+const CAST=['မြမြ','ကိုကို','အဘွား','ဦးကြီး','ကလေး'];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let S={owner:'',repo:'auto-video',token:'',run:null,hist:[]};
+let f={title:'',genre:0,scenes:7,cast:[],voice:'male',story:''};
+let tab='make',msg='',busy=false,timer=null;
+
+try{const r=JSON.parse(localStorage.getItem(KEY)||'null');if(r)S=Object.assign(S,r)}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const gh=(p,o={})=>fetch('https://api.github.com'+p,Object.assign({},o,{headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',Authorization:'Bearer '+S.token,'Content-Type':'application/json'}}));
+const repo=()=>`/repos/${S.owner}/${S.repo}`;
+
+function syncForm(){const t=$('#f-title');if(!t)return;f.title=t.value;f.story=$('#f-story').value}
+function elapsed(t){const m=Math.floor((Date.now()-t)/60000);return m<1?'၁ မိနစ်အောက်':m+' မိနစ်'}
+
+function vMake(){
+  const R=S.run;let status='';
+  if(R){
+    if(!R.done){
+      const txt=!R.id?'GitHub ကို တောင်းဆိုထားပါတယ်၊ စတင်ဖို့ စောင့်နေပါတယ်...':R.status==='queued'?'တန်းစီစောင့်နေပါတယ်...':'ဗီဒီယို ဖန်တီးနေပါတယ်...';
+      status=`<section class="card"><h2>⏳ ${esc(R.title)}</h2><p class="mu">${txt} (${elapsed(R.t0)} ကြာပါပြီ၊ ပုံမှန် ၁၀–၂၅ မိနစ်)</p><div class="bar"><i></i></div><p class="mu">App ကို ပိတ်ထားလည်း ရပါတယ်၊ ပြန်ဖွင့်ရင် ဆက်စစ်ပေးပါမယ်။</p></section>`;
+    }else if(R.conclusion==='success'){
+      status=`<section class="card"><h2>✅ ${esc(R.title)}</h2>${R.video?`<a class="btn" href="${esc(R.video)}" target="_blank" rel="noopener">⬇ ဗီဒီယို ဒေါင်းလုဒ်လုပ်မယ်</a>`:'<p class="mu">ဖိုင်လင့်ခ် ရှာမတွေ့သေးပါ၊ မှတ်တမ်းမှာ ကြည့်ပါ။</p>'}${R.caption?`<div class="cap">${esc(R.caption)}</div><button class="btn ghost" data-act="copy">Caption ကူးမယ်</button>`:''}</section>`;
+    }else{
+      status=`<section class="card"><h2>❌ မအောင်မြင်ပါ</h2><p class="mu">အကြောင်းရင်းကြည့်ရန် ဒီလင့်ခ်ကို ဖွင့်ပြီး screenshot ပို့ပါ။</p><a class="btn ghost" href="${esc(R.url||'#')}" target="_blank" rel="noopener">အမှားစာ ကြည့်မယ်</a></section>`;
+    }
+  }
+  return`${status}<section class="card">
+<label for="f-title" style="margin-top:0">ခေါင်းစဉ်</label><input id="f-title" value="${esc(f.title)}" placeholder="ဥပမာ - ညသန်းခေါင် ဖုန်းခေါ်သံ">
+<label>အမျိုးအစား</label><div class="chips">${GENRES.map((g,i)=>`<button class="chip${f.genre===i?' on':''}" data-genre="${i}">${g[1]}</button>`).join('')}</div>
+<label>Scene အရေအတွက်</label><div class="seg">${[5,7,9].map(n=>`<button class="${f.scenes===n?'on':''}" data-scenes="${n}">${n}</button>`).join('')}</div>
+<label>ဇာတ်ကောင် (မရွေးရင် AI က ဖန်တီးမယ်)</label><div class="chips">${CAST.map(c=>`<button class="chip${f.cast.includes(c)?' on':''}" data-cast="${c}">${c}</button>`).join('')}</div>
+<label>ပြောတဲ့အသံ</label><div class="seg"><button class="${f.voice==='male'?'on':''}" data-voice="male">အမျိုးသား</button><button class="${f.voice==='female'?'on':''}" data-voice="female">အမျိုးသမီး</button></div>
+<label for="f-story">ကိုယ့်ဇာတ်လမ်း JSON (ရှိရင်ထည့်ပါ၊ မထည့်ရင် Claude က ရေးမယ်)</label><textarea id="f-story" rows="3">${esc(f.story)}</textarea>
+<button class="btn" data-act="start"${busy?' disabled':''}>🎬 ဗီဒီယိုထုတ်မယ်</button><p class="msg ${msg.startsWith('✅')?'ok':'err'}" role="status">${esc(msg)}</p></section>`;
+}
+
+function vHist(){
+  const H=S.hist||[];
+  return`<h2 style="margin-top:16px">ဖန်တီးပြီးသားများ</h2>${H.length?H.map(h=>`<section class="card"><b>${esc(h.name)}</b><br><small>${esc(h.date)}</small>${h.video?`<a class="btn" href="${esc(h.video)}" target="_blank" rel="noopener">⬇ ဒေါင်းလုဒ်</a>`:''}${h.body?`<div class="cap">${esc(h.body)}</div>`:''}</section>`).join(''):'<p class="mu">မရှိသေးပါ။</p>'}<button class="btn ghost" data-act="refresh">ပြန်စစ်မယ်</button><p class="msg mu">${esc(msg)}</p>`;
+}
+
+function vSet(){return`<section class="card"><label for="s-o" style="margin-top:0">GitHub အမည် (username)</label><input id="s-o" value="${esc(S.owner)}" autocapitalize="none" spellcheck="false">
+<label for="s-r">Repository နာမည်</label><input id="s-r" value="${esc(S.repo)}" autocapitalize="none" spellcheck="false">
+<label for="s-t">Access token</label><input id="s-t" type="password" value="${esc(S.token)}" autocapitalize="none" spellcheck="false">
+<p class="mu" style="font-size:.88rem">Token ကို GitHub → Settings → Developer settings → Fine-grained tokens မှာ ဖန်တီးပါ။ ဒီ repository တစ်ခုတည်းကိုပဲ ရွေးပြီး <b>Actions: Read and write</b> နဲ့ <b>Contents: Read-only</b> ပေးပါ။ Token ကို ဒီဖုန်းထဲမှာပဲ သိမ်းပါတယ်။</p>
+<button class="btn" data-act="saveSet">သိမ်းပြီး စစ်မယ်</button><p class="msg ${msg.startsWith('✅')?'ok':'err'}" role="status">${esc(msg)}</p></section>`}
+
+function render(){
+  const V={make:vMake,hist:vHist,set:vSet};
+  $('#app').innerHTML=`<header><b>🎬 Auto Video</b><br><small>ခေါင်းစဉ်ရိုက် → ဗီဒီယိုရ</small></header>${V[tab]()}
+<nav>${[['make','🎬','ဖန်တီးမယ်'],['hist','🗂️','မှတ်တမ်း'],['set','⚙️','ဆက်တင်']].map(t=>`<button data-tab="${t[0]}" class="${tab===t[0]?'on':''}"><span>${t[1]}</span>${t[2]}</button>`).join('')}</nav>`}
+
+async function loadHist(){
+  const r=await gh(`${repo()}/releases?per_page=20`);if(!r.ok)throw new Error('releases '+r.status);
+  const j=await r.json();
+  S.hist=j.filter(x=>/^video-/.test(x.tag_name)).map(x=>({tag:x.tag_name,name:x.name||x.tag_name,date:(x.published_at||'').slice(0,10),body:x.body||'',video:((x.assets||[]).find(a=>a.name==='video.mp4')||{}).browser_download_url||''}));
+  save();
+}
+
+async function check(){
+  const R=S.run;if(!R||R.done||!S.token)return;
+  try{
+    const r=await gh(`${repo()}/actions/workflows/video.yml/runs?event=workflow_dispatch&per_page=5`);
+    if(!r.ok)throw new Error('runs '+r.status);
+    const j=await r.json();
+    const run=(j.workflow_runs||[]).find(x=>R.id?x.id===R.id:new Date(x.created_at).getTime()>=R.t0-90000);
+    if(run){
+      Object.assign(R,{id:run.id,num:run.run_number,url:run.html_url,status:run.status,conclusion:run.conclusion});
+      if(run.status==='completed'){
+        R.done=true;
+        if(run.conclusion==='success'){await loadHist();const h=S.hist.find(x=>x.tag==='video-'+R.num);if(h){R.video=h.video;R.caption=h.body}}
+      }
+    }
+  }catch(e){}
+  save();if(tab==='make'&&document.activeElement.tagName!=='TEXTAREA'&&document.activeElement.tagName!=='INPUT')render();
+}
+function poll(){clearInterval(timer);timer=setInterval(check,10000);check()}
+
+async function start(){
+  syncForm();msg='';
+  if(!S.owner||!S.token){tab='set';msg='အရင်ဆုံး ဆက်တင်ထဲမှာ GitHub အချက်အလက်ထည့်ပါ။';render();return}
+  if(!f.title.trim()){msg='ခေါင်းစဉ် ရေးပါ။';render();return}
+  busy=true;render();
+  try{
+    const t0=Date.now();
+    const r=await gh(`${repo()}/actions/workflows/video.yml/dispatches`,{method:'POST',body:JSON.stringify({ref:'main',inputs:{title:f.title.trim(),genre:GENRES[f.genre][0],scenes:String(f.scenes),cast:f.cast.join(','),voice:f.voice,story_json:f.story.trim()}})});
+    if(r.status!==204){const t=await r.text();throw new Error(r.status+' '+t.slice(0,150))}
+    S.run={t0,title:f.title.trim(),id:null,done:false};save();msg='';poll();
+  }catch(e){msg='မစနိုင်ပါ: '+e.message}
+  busy=false;render();
+}
+
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('[data-act],[data-tab],[data-genre],[data-scenes],[data-cast],[data-voice]');if(!t)return;const D=t.dataset;
+  if(D.tab){syncForm();tab=D.tab;msg='';render();if(tab==='hist')refresh();return}
+  if(D.genre!==undefined){syncForm();f.genre=+D.genre;render();return}
+  if(D.scenes){syncForm();f.scenes=+D.scenes;render();return}
+  if(D.cast){syncForm();f.cast=f.cast.includes(D.cast)?f.cast.filter(c=>c!==D.cast):[...f.cast,D.cast];render();return}
+  if(D.voice){syncForm();f.voice=D.voice;render();return}
+  if(D.act==='start')start();
+  if(D.act==='copy'){try{await navigator.clipboard.writeText(S.run.caption)}catch(x){}t.textContent='ကူးပြီးပါပြီ ✓'}
+  if(D.act==='refresh')refresh();
+  if(D.act==='saveSet'){
+    S.owner=$('#s-o').value.trim();S.repo=$('#s-r').value.trim();S.token=$('#s-t').value.trim();save();msg='စစ်နေပါတယ်...';render();
+    try{
+      const r=await gh(`${repo()}/actions/workflows/video.yml`);
+      msg=r.ok?'✅ ချိတ်ဆက်မှု အောင်မြင်ပါတယ်။':r.status===404?'Repository ဒါမှမဟုတ် video.yml ရှာမတွေ့ပါ၊ နာမည်ကို စစ်ပါ။':r.status===401?'Token မမှန်ပါ။':'မအောင်မြင်ပါ ('+r.status+')';
+    }catch(x){msg='အင်တာနက် ဒါမှမဟုတ် token စစ်ပါ။'}
+    render();
+  }
+});
+async function refresh(){msg='စစ်နေပါတယ်...';render();try{await loadHist();msg=''}catch(e){msg='မှတ်တမ်း မရပါ၊ ဆက်တင်ကို စစ်ပါ။'}render()}
+
+render();if(S.run&&!S.run.done)poll();
+</script>
+</body>
+</html>
